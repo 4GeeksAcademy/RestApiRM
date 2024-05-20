@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, Planet, Favorite
+from models import db, User, Planets, Favorite_Characters, Favorite_Planets
 #from models import Person
 
 app = Flask(__name__)
@@ -50,13 +50,13 @@ def get_users():
 
 @app.route('/planet', methods=['GET'])
 def get_planets():
-    allPlanets = Planet.query.all()
+    allPlanets = Planets.query.all()
     result = [element.serialize() for element in allPlanets]
     return jsonify(result), 200
 
 @app.route('/planet-galaxy', methods=['GET'])
 def get_relation_planet_galaxy():
-    planets = Planet.query.all()
+    planets = Planets.query.all()
     response = []
     for planet in planets:
         response.append({
@@ -66,52 +66,62 @@ def get_relation_planet_galaxy():
         })
     return jsonify(response)
 
-@app.route('/favorite/planet/<int:planet_id>', methods=['POST'])
-def add_favorite_planet(planet_id):
-    # Capturamos la informacion del request body y accedemos a planet_ud id
- 
-    user = User.query.get(current_logged_user_id)
+@app.route("/users/favorites", methods=["GET"])
+def get_user_favorites():
+    user_id = request.json.get("user_id")
 
-    new_favorite = Favorite(user_id=current_logged_user_id, planet_id=planet_id)
-    db.session.add(new_favorite)
+    favorite_planets = Favorite_Planets.query.filter_by(id=user_id)
+    favorite_planets = list(map(lambda planet: planet.serialize(), favorite_planets))
+
+    favorite_characters = Favorite_Characters.query.filter_by(id=user_id)
+    favorite_characters = list(map(lambda character: character.serialize(), favorite_characters))
+
+    return jsonify({
+        "planets": favorite_planets,
+        "characters": favorite_characters
+    }),200
+
+@app.route("/favorite/people/<int:people_id>", methods=["POST"])
+def add_favorite_character(people_id):
+
+    favorite_character = Favorite_Characters()
+    favorite_character.user_id = request.json.get("user_id")
+    favorite_character.character_id_id = people_id
+
+    db.session.add(favorite_character)
     db.session.commit()
 
-    response_body = {
-        "msg": "Favorito agregado correctamente", 
-        "favorite": new_favorite.serialize()
-    }
-
-    return jsonify(response_body), 200
+    return jsonify({
+      "msg": "Character added to favorites",
+      "status": "ok"}
+    ), 201
 
 
 @app.route('/planet', methods=['POST'])
-def post_planet():
+def get_all_planets():
+    planets = Planets.query.all()
+    planets = list(map(lambda planet: planet.serialize(), planets))
 
-    data = request.get_json()
+    return jsonify({"planets": planets}), 200
 
-  
-    planet = Planet(name=data['name'], description=data['description'], population=data['population'])
-
-   
-    db.session.add(planet)
+@app.route("/favorite/planet/<int:planet_id>", methods=["DELETE"])
+def delete_favorite_planet(planet_id):
+    planet_to_delete = Favorite_Planets.query.filter(Favorite_Planets.user_id == request.json.get("user_id"), Favorite_Planets.planet_id == planet_id).first()
+    db.session.delete(planet_to_delete)
     db.session.commit()
 
-    response_body = {"msg": "Planet inserted successfully"}
-    return jsonify(response_body), 200
+    return f"Planet deleted from favorites", 201
 
-@app.route('/users/favorites', methods=['GET'])
-def get_user_favorites():
+@app.route("/favorite/people/<int:people_id>", methods=["DELETE"])
+def delete_favorite_character(people_id):
+    character_to_delete = Favorite_Planets.query.filter(Favorite_Planets.user_id == request.json.get("user_id"), Favorite_Planets.character_id == people_id).first()
+    db.session.delete(character_to_delete)
+    db.session.commit()
     
-    user = User.query.get(current_logged_user_id)
-    favorites = user.favorites
-    serialized_favorites = [f.serialize() for f in favorites]
+    return f"Character deleted from favorites", 201
 
-    response_body = {
-        "msg": f"Aqui tienes los favoritos de {user.email}",
-        "favorites": serialized_favorites
-    }
 
-    return jsonify(response_body), 200
+
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
